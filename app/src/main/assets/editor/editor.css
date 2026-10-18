@@ -12,8 +12,8 @@ html, body {
     background-color: #15181E;
     color: #E6EDF3;
     font-family: 'JetBrains Mono', 'Fira Code', 'Roboto Mono', monospace;
-    font-size: 14px;
-    line-height: 1.5;
+    font-size: 13px;
+    line-height: 20px;
 }
 
 #editor-container {
@@ -33,13 +33,13 @@ html, body {
 }
 
 #gutter {
-    width: 48px;
+    width: 36px;
     height: 100%;
     background-color: #12151B;
     border-right: 1px solid #303744;
     color: #6E7681;
     text-align: right;
-    padding: 8px 6px;
+    padding: 6px 4px;
     user-select: none;
     -webkit-user-select: none;
     overflow: hidden;
@@ -76,22 +76,29 @@ html, body {
     left: 0;
     width: 100%;
     min-height: 100%;
-    padding: 8px 12px;
+    padding: 6px 10px;
     margin: 0;
     border: none;
     outline: none;
     resize: none;
     background: transparent;
-    color: #E6EDF3;
+    color: transparent !important;
+    -webkit-text-fill-color: transparent !important;
     font-family: inherit;
     font-size: inherit;
-    line-height: inherit;
+    line-height: 20px;
     white-space: pre;
     word-wrap: normal;
     tab-size: 4;
-    caret-color: #58A6FF;
+    caret-color: #58A6FF !important;
     z-index: 2;
-    background-color: rgba(0, 0, 0, 0);
+    background-color: transparent;
+}
+
+#code-editor::selection {
+    background: rgba(88, 166, 255, 0.4) !important;
+    color: transparent !important;
+    -webkit-text-fill-color: transparent !important;
 }
 
 #highlight-layer {
@@ -100,17 +107,54 @@ html, body {
     left: 0;
     width: 100%;
     min-height: 100%;
-    padding: 8px 12px;
+    padding: 6px 10px;
     margin: 0;
     font-family: inherit;
     font-size: inherit;
-    line-height: inherit;
+    line-height: 20px;
     white-space: pre;
     word-wrap: normal;
     tab-size: 4;
     pointer-events: none;
     z-index: 1;
     color: #E6EDF3;
+}
+
+/* Autocomplete Popup */
+#autocomplete-box {
+    position: absolute;
+    display: none;
+    background: #1C2128;
+    border: 1px solid #444C56;
+    border-radius: 6px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+    max-height: 180px;
+    overflow-y: auto;
+    z-index: 1000;
+    min-width: 150px;
+    font-family: inherit;
+    font-size: 12px;
+}
+
+.ac-item {
+    padding: 6px 10px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    color: #E6EDF3;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+
+.ac-item:hover, .ac-item.active {
+    background: #0969DA;
+    color: #FFFFFF;
+}
+
+.ac-type {
+    font-size: 10px;
+    color: #8B949E;
+    margin-left: 8px;
 }
 
 /* Syntax Highlighting Colors */

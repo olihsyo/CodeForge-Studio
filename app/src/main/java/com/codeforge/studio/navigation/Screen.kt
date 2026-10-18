@@ -12,6 +12,9 @@ import androidx.compose.material.icons.filled.Source
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.ui.graphics.vector.ImageVector
 
+import androidx.compose.material.icons.filled.AddBox
+import androidx.compose.material.icons.filled.Language
+
 sealed class Screen(val route: String, val title: String, val icon: ImageVector) {
     object Welcome : Screen("welcome", "Setup", Icons.Default.Folder)
     object Home : Screen("home", "Home", Icons.Default.Home)
@@ -22,13 +25,15 @@ sealed class Screen(val route: String, val title: String, val icon: ImageVector)
     object SourceControl : Screen("git", "Git", Icons.Default.Source)
     object AiAssistant : Screen("ai", "AI Assistant", Icons.Default.SmartToy)
     object Settings : Screen("settings", "Settings", Icons.Default.Settings)
+    object Languages : Screen("languages", "Languages", Icons.Default.Language)
+    object NewProject : Screen("new_project", "New Project", Icons.Default.AddBox)
 }
 
 val BottomNavItems = listOf(
     Screen.Home,
     Screen.Editor,
-    Screen.Terminal,
     Screen.Build,
     Screen.Problems,
-    Screen.SourceControl
+    Screen.SourceControl,
+    Screen.Settings
 )

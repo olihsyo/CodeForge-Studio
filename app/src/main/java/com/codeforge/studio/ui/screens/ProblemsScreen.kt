@@ -1,6 +1,7 @@
 package com.codeforge.studio.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -14,188 +15,326 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Error
+import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.codeforge.studio.diagnostics.DiagnosticIssue
 import com.codeforge.studio.diagnostics.DiagnosticsManager
 import com.codeforge.studio.diagnostics.Severity
+import com.codeforge.studio.ui.theme.AccentCyan
 import com.codeforge.studio.ui.theme.AccentPrimary
 import com.codeforge.studio.ui.theme.BgApp
+import com.codeforge.studio.ui.theme.BgCard
+import com.codeforge.studio.ui.theme.BgEditor
 import com.codeforge.studio.ui.theme.BgPanel
 import com.codeforge.studio.ui.theme.BorderColor
+import com.codeforge.studio.ui.theme.BorderHighlight
 import com.codeforge.studio.ui.theme.StatusError
 import com.codeforge.studio.ui.theme.StatusSuccess
 import com.codeforge.studio.ui.theme.StatusWarning
+import com.codeforge.studio.ui.theme.TextMuted
 import com.codeforge.studio.ui.theme.TextPrimary
 import com.codeforge.studio.ui.theme.TextSecondary
 import java.io.File
 
+/**
+ * Screen 8: Problems Panel
+ * Matches header, filter chips (All 6, Errors 2, Warnings 3, Info 1),
+ * problem items (red error, orange warning, file names, lines/cols).
+ */
 @Composable
 fun ProblemsScreen(
     diagnosticsManager: DiagnosticsManager,
     onNavigateToFileLine: (File, Int) -> Unit
 ) {
-    val issues by diagnosticsManager.issues.collectAsState()
-    val groupedByFile = issues.groupBy { it.file }
+    val realIssues by diagnosticsManager.issues.collectAsState()
+    var selectedFilter by remember { mutableStateOf(0) } // 0: All, 1: Errors, 2: Warnings, 3: Info
+    var searchQuery by remember { mutableStateOf("") }
+    var isSearchVisible by remember { mutableStateOf(false) }
+
+    // Real issues from DiagnosticsManager
+    val displayIssues = realIssues
+
+    val errorCount = displayIssues.count { it.severity == Severity.ERROR }
+    val warningCount = displayIssues.count { it.severity == Severity.WARNING }
+    val infoCount = displayIssues.count { it.severity == Severity.INFO }
+
+    val filteredIssues = remember(displayIssues, selectedFilter, searchQuery) {
+        displayIssues.filter { issue ->
+            val matchesFilter = when (selectedFilter) {
+                1 -> issue.severity == Severity.ERROR
+                2 -> issue.severity == Severity.WARNING
+                3 -> issue.severity == Severity.INFO
+                else -> true
+            }
+            val matchesSearch = searchQuery.isBlank() ||
+                issue.file.name.contains(searchQuery, ignoreCase = true) ||
+                issue.message.contains(searchQuery, ignoreCase = true)
+            matchesFilter && matchesSearch
+        }
+    }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(BgApp)
-            .padding(16.dp)
     ) {
-        // Header
+        // Top Header
         Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(BgPanel)
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Column {
-                Text(
-                    text = "Problems & Diagnostics",
-                    style = MaterialTheme.typography.titleLarge.copy(color = TextPrimary, fontWeight = FontWeight.Bold)
-                )
-                Text(
-                    text = if (issues.isEmpty()) "All diagnostics clean" else "${issues.size} issues found across workspace",
-                    style = MaterialTheme.typography.bodySmall.copy(color = TextSecondary)
-                )
-            }
+            Text(
+                text = "Problems",
+                fontSize = 17.sp,
+                fontWeight = FontWeight.Bold,
+                color = TextPrimary
+            )
 
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(6.dp))
-                    .background(if (issues.isEmpty()) StatusSuccess.copy(alpha = 0.15f) else StatusError.copy(alpha = 0.15f))
-                    .padding(horizontal = 8.dp, vertical = 4.dp)
-            ) {
-                Text(
-                    text = if (issues.isEmpty()) "PASSED" else "${issues.size} ISSUES",
-                    color = if (issues.isEmpty()) StatusSuccess else StatusError,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = { isSearchVisible = !isSearchVisible }, modifier = Modifier.size(36.dp)) {
+                    Icon(Icons.Default.Search, contentDescription = "Search", tint = TextSecondary, modifier = Modifier.size(20.dp))
+                }
+                IconButton(onClick = { /* Filter */ }, modifier = Modifier.size(36.dp)) {
+                    Icon(Icons.Default.FilterList, contentDescription = "Filter", tint = TextSecondary, modifier = Modifier.size(20.dp))
+                }
+            }
+        }
+
+        if (isSearchVisible) {
+            Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    placeholder = { Text("Filter problems...", color = TextMuted, fontSize = 12.sp) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = TextPrimary,
+                        unfocusedTextColor = TextPrimary,
+                        focusedBorderColor = AccentPrimary,
+                        unfocusedBorderColor = BorderColor,
+                        focusedContainerColor = BgCard,
+                        unfocusedContainerColor = BgCard
+                    )
                 )
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
-
-        if (issues.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth(),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(
-                        imageVector = Icons.Default.CheckCircle,
-                        contentDescription = null,
-                        tint = StatusSuccess,
-                        modifier = Modifier.size(48.dp)
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Text(
-                        text = "No problems detected in workspace",
-                        color = TextPrimary,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Medium
-                    )
-                    Text(
-                        text = "Real syntax validations and compiler outputs will appear here.",
-                        color = TextSecondary,
-                        fontSize = 12.sp
-                    )
-                }
+        // Screen 8 Filter Chips: All 6 | Errors 2 | Warnings 3 | Info 1
+        LazyRow(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(BgPanel)
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            item {
+                ProblemFilterChip(
+                    label = "All ${displayIssues.size}",
+                    isSelected = selectedFilter == 0,
+                    onClick = { selectedFilter = 0 }
+                )
             }
-        } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                groupedByFile.forEach { (file, fileIssues) ->
-                    item {
-                        Text(
-                            text = file.name,
-                            color = AccentPrimary,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                    }
+            item {
+                ProblemFilterChip(
+                    label = "Errors $errorCount",
+                    color = StatusError,
+                    isSelected = selectedFilter == 1,
+                    onClick = { selectedFilter = 1 }
+                )
+            }
+            item {
+                ProblemFilterChip(
+                    label = "Warnings $warningCount",
+                    color = StatusWarning,
+                    isSelected = selectedFilter == 2,
+                    onClick = { selectedFilter = 2 }
+                )
+            }
+            item {
+                ProblemFilterChip(
+                    label = "Info $infoCount",
+                    color = AccentCyan,
+                    isSelected = selectedFilter == 3,
+                    onClick = { selectedFilter = 3 }
+                )
+            }
+        }
 
-                    items(fileIssues) { issue ->
-                        ProblemIssueCard(
-                            issue = issue,
-                            onClick = { onNavigateToFileLine(issue.file, issue.line) }
-                        )
+        Spacer(modifier = Modifier.height(10.dp))
+
+        // Problem Cards List
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            if (filteredIssues.isEmpty()) {
+                item {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 40.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(Icons.Default.CheckCircle, contentDescription = null, tint = StatusSuccess, modifier = Modifier.size(36.dp))
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text("No problems or syntax issues detected in workspace", color = TextSecondary, fontSize = 13.sp)
+                        }
                     }
+                }
+            } else {
+                items(filteredIssues) { issue ->
+                    ProblemCard(
+                        issue = issue,
+                        onClick = { onNavigateToFileLine(issue.file, issue.line) }
+                    )
                 }
             }
         }
     }
 }
 
+/**
+ * Filter Chip matching Screen 8
+ */
 @Composable
-fun ProblemIssueCard(
+fun ProblemFilterChip(
+    label: String,
+    color: Color = AccentPrimary,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(6.dp))
+            .background(if (isSelected) color.copy(alpha = 0.2f) else BgCard)
+            .border(1.dp, if (isSelected) color else BorderColor, RoundedCornerShape(6.dp))
+            .clickable { onClick() }
+            .padding(horizontal = 10.dp, vertical = 6.dp)
+    ) {
+        Text(
+            text = label,
+            color = if (isSelected) color else TextSecondary,
+            fontSize = 11.sp,
+            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+        )
+    }
+}
+
+/**
+ * Problem item card matching Screen 8
+ */
+@Composable
+fun ProblemCard(
     issue: DiagnosticIssue,
     onClick: () -> Unit
 ) {
+    val iconColor = when (issue.severity) {
+        Severity.ERROR -> StatusError
+        Severity.WARNING -> StatusWarning
+        Severity.INFO -> AccentCyan
+    }
+
+    val iconVector = when (issue.severity) {
+        Severity.ERROR -> Icons.Default.Error
+        Severity.WARNING -> Icons.Default.Warning
+        Severity.INFO -> Icons.Default.Info
+    }
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
+            .clip(RoundedCornerShape(10.dp))
             .clickable { onClick() },
-        colors = CardDefaults.cardColors(containerColor = BgPanel),
+        colors = CardDefaults.cardColors(containerColor = BgCard),
         border = androidx.compose.foundation.BorderStroke(1.dp, BorderColor)
     ) {
         Row(
             modifier = Modifier.padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.Top
         ) {
-            Icon(
-                imageVector = when (issue.severity) {
-                    Severity.ERROR -> Icons.Default.Error
-                    Severity.WARNING -> Icons.Default.Warning
-                    Severity.INFO -> Icons.Default.Info
-                },
-                contentDescription = null,
-                tint = when (issue.severity) {
-                    Severity.ERROR -> StatusError
-                    Severity.WARNING -> StatusWarning
-                    Severity.INFO -> AccentPrimary
-                },
-                modifier = Modifier.size(20.dp)
-            )
-            Spacer(modifier = Modifier.width(10.dp))
+            Box(
+                modifier = Modifier
+                    .size(24.dp)
+                    .clip(CircleShape)
+                    .background(iconColor.copy(alpha = 0.15f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = iconVector,
+                    contentDescription = null,
+                    tint = iconColor,
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.width(12.dp))
+
             Column(modifier = Modifier.weight(1f)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = issue.file.name,
+                        color = TextPrimary,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 13.sp
+                    )
+                    Text(
+                        text = "Ln ${issue.line}, Col ${issue.column}",
+                        color = TextMuted,
+                        fontSize = 10.sp,
+                        fontFamily = FontFamily.Monospace
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(2.dp))
+
                 Text(
                     text = issue.message,
-                    color = TextPrimary,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Medium
-                )
-                Text(
-                    text = "${issue.source} • Line ${issue.line}, Col ${issue.column}",
                     color = TextSecondary,
-                    fontSize = 11.sp
+                    fontSize = 12.sp,
+                    lineHeight = 16.sp
                 )
             }
         }

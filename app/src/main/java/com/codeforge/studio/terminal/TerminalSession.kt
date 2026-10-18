@@ -24,12 +24,20 @@ class TerminalSession(initialDir: File) {
     private val _isRunning = MutableStateFlow(false)
     val isRunning: StateFlow<Boolean> = _isRunning.asStateFlow()
 
+    private val _history = MutableStateFlow<List<String>>(emptyList())
+    val history: StateFlow<List<String>> = _history.asStateFlow()
+
     private var process: Process? = null
     private var writer: BufferedWriter? = null
     private var stdoutReader: BufferedReader? = null
     private var stderrReader: BufferedReader? = null
 
-    val environmentInfo: String = "Android Shell (/system/bin/sh)"
+    val environmentInfo: String
+        get() = if (System.getProperty("os.name")?.contains("Windows", ignoreCase = true) == true) {
+            "Host Shell (cmd.exe)"
+        } else {
+            "Android Shell (/system/bin/sh)"
+        }
 
     init {
         appendLine("CodeForge Studio Terminal [Environment: $environmentInfo]", OutputType.SYSTEM_INFO)
@@ -38,19 +46,30 @@ class TerminalSession(initialDir: File) {
         startShellProcess()
     }
 
+    fun restartSession() {
+        kill()
+        _isRunning.value = false
+        appendLine("Restarting terminal session...", OutputType.SYSTEM_INFO)
+        startShellProcess()
+    }
+
     private fun startShellProcess() {
         runCatching {
-            val shellBinary = when {
-                File("/system/bin/sh").canExecute() -> "/system/bin/sh"
-                File("/bin/sh").canExecute() -> "/bin/sh"
-                else -> "sh"
+            val isWindows = System.getProperty("os.name")?.contains("Windows", ignoreCase = true) == true
+            val shellCommand = when {
+                isWindows -> listOf("cmd.exe")
+                File("/system/bin/sh").canExecute() -> listOf("/system/bin/sh")
+                File("/bin/sh").canExecute() -> listOf("/bin/sh")
+                else -> listOf("sh")
             }
 
-            val pb = ProcessBuilder(shellBinary)
+            val pb = ProcessBuilder(shellCommand)
                 .directory(_currentDir.value)
                 .redirectErrorStream(false)
 
-            pb.environment()["TERM"] = "xterm-256color"
+            if (!isWindows) {
+                pb.environment()["TERM"] = "xterm-256color"
+            }
 
             val p = pb.start()
             process = p
@@ -92,6 +111,12 @@ class TerminalSession(initialDir: File) {
     suspend fun sendCommand(command: String) = withContext(Dispatchers.IO) {
         val trimmed = command.trim()
         if (trimmed.isEmpty()) return@withContext
+
+        // Record in history
+        val hist = _history.value.toMutableList()
+        hist.remove(trimmed)
+        hist.add(trimmed)
+        _history.value = hist
 
         appendLine("$ ${_currentDir.value.name} % $trimmed", OutputType.SYSTEM_INFO)
 
@@ -136,7 +161,18 @@ class TerminalSession(initialDir: File) {
 
     private suspend fun runSingleCommand(cmd: String) = withContext(Dispatchers.IO) {
         runCatching {
-            val p = ProcessBuilder("/system/bin/sh", "-c", cmd)
+            val isWindows = System.getProperty("os.name")?.contains("Windows", ignoreCase = true) == true
+            val commandList = if (isWindows) {
+                listOf("cmd.exe", "/c", cmd)
+            } else {
+                val shell = when {
+                    File("/system/bin/sh").canExecute() -> "/system/bin/sh"
+                    File("/bin/sh").canExecute() -> "/bin/sh"
+                    else -> "sh"
+                }
+                listOf(shell, "-c", cmd)
+            }
+            val p = ProcessBuilder(commandList)
                 .directory(_currentDir.value)
                 .start()
 

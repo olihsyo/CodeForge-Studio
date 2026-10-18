@@ -37,37 +37,82 @@ class FileManager {
 
     suspend fun createFile(parentDir: File, name: String): Result<File> = withContext(Dispatchers.IO) {
         runCatching {
-            val newFile = File(parentDir, name)
+            val cleanName = name.trim()
+            if (cleanName.isBlank() || cleanName.contains("/") || cleanName.contains("\\") || cleanName.contains("..")) {
+                throw IllegalArgumentException("Invalid file name: $name")
+            }
+            val newFile = File(parentDir, cleanName)
             if (newFile.exists()) {
-                throw IllegalArgumentException("File already exists: $name")
+                throw IllegalArgumentException("File already exists: $cleanName")
             }
             newFile.parentFile?.mkdirs()
-            newFile.createNewFile()
+            if (!newFile.createNewFile()) {
+                throw IllegalStateException("Failed to create file: $cleanName")
+            }
             newFile
         }
     }
 
     suspend fun createDirectory(parentDir: File, name: String): Result<File> = withContext(Dispatchers.IO) {
         runCatching {
-            val newDir = File(parentDir, name)
-            if (newDir.exists()) {
-                throw IllegalArgumentException("Directory already exists: $name")
+            val cleanName = name.trim()
+            if (cleanName.isBlank() || cleanName.contains("/") || cleanName.contains("\\") || cleanName.contains("..")) {
+                throw IllegalArgumentException("Invalid directory name: $name")
             }
-            newDir.mkdirs()
+            val newDir = File(parentDir, cleanName)
+            if (newDir.exists()) {
+                throw IllegalArgumentException("Directory already exists: $cleanName")
+            }
+            if (!newDir.mkdirs() && !newDir.exists()) {
+                throw IllegalStateException("Failed to create directory: $cleanName")
+            }
             newDir
         }
     }
 
     suspend fun rename(file: File, newName: String): Result<File> = withContext(Dispatchers.IO) {
         runCatching {
-            val target = File(file.parentFile, newName)
+            val cleanName = newName.trim()
+            if (cleanName.isBlank() || cleanName.contains("/") || cleanName.contains("\\") || cleanName.contains("..")) {
+                throw IllegalArgumentException("Invalid new name: $newName")
+            }
+            val target = File(file.parentFile, cleanName)
             if (target.exists()) {
-                throw IllegalArgumentException("Target name already exists: $newName")
+                throw IllegalArgumentException("Target name already exists: $cleanName")
             }
             if (!file.renameTo(target)) {
                 throw IllegalStateException("Failed to rename file")
             }
             target
+        }
+    }
+
+    suspend fun move(source: File, targetDir: File): Result<File> = withContext(Dispatchers.IO) {
+        runCatching {
+            if (!source.exists()) {
+                throw IllegalArgumentException("Source does not exist: ${source.absolutePath}")
+            }
+            if (!targetDir.exists() || !targetDir.isDirectory) {
+                throw IllegalArgumentException("Target directory does not exist: ${targetDir.absolutePath}")
+            }
+            if (source.isDirectory && targetDir.canonicalPath.startsWith(source.canonicalPath + File.separator)) {
+                throw IllegalArgumentException("Cannot move a directory inside itself")
+            }
+            val targetFile = File(targetDir, source.name)
+            if (targetFile.exists()) {
+                throw IllegalArgumentException("Item with name '${source.name}' already exists in target directory")
+            }
+            if (!source.renameTo(targetFile)) {
+                // Fallback copy and delete
+                if (source.isDirectory) {
+                    source.copyRecursively(targetFile, overwrite = false)
+                    source.deleteRecursively()
+                } else {
+                    source.copyTo(targetFile, overwrite = false)
+                    source.delete()
+                }
+            }
+            targetFile
         }
     }
 

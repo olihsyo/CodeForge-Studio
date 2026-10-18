@@ -6,9 +6,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-class SettingsManager(context: Context) {
+class SettingsManager(private val prefs: SharedPreferences) {
 
-    private val prefs: SharedPreferences = context.getSharedPreferences("codeforge_settings", Context.MODE_PRIVATE)
+    constructor(context: Context) : this(context.getSharedPreferences("codeforge_settings", Context.MODE_PRIVATE))
 
     private val _darkTheme = MutableStateFlow(prefs.getBoolean("dark_theme", true))
     val darkTheme: StateFlow<Boolean> = _darkTheme.asStateFlow()
@@ -30,6 +30,18 @@ class SettingsManager(context: Context) {
 
     private val _remoteExecutionUrl = MutableStateFlow(prefs.getString("remote_url", "") ?: "")
     val remoteExecutionUrl: StateFlow<String> = _remoteExecutionUrl.asStateFlow()
+
+    private val _aiApiKey = MutableStateFlow(prefs.getString("ai_api_key", "") ?: "")
+    val aiApiKey: StateFlow<String> = _aiApiKey.asStateFlow()
+
+    private val _aiModel = MutableStateFlow(prefs.getString("ai_model", "gemini-1.5-flash") ?: "gemini-1.5-flash")
+    val aiModel: StateFlow<String> = _aiModel.asStateFlow()
+
+    private val _gitUserName = MutableStateFlow(prefs.getString("git_user_name", "Developer") ?: "Developer")
+    val gitUserName: StateFlow<String> = _gitUserName.asStateFlow()
+
+    private val _gitUserEmail = MutableStateFlow(prefs.getString("git_user_email", "developer@codeforge.local") ?: "developer@codeforge.local")
+    val gitUserEmail: StateFlow<String> = _gitUserEmail.asStateFlow()
 
     fun setDarkTheme(enabled: Boolean) {
         _darkTheme.value = enabled
@@ -66,5 +78,24 @@ class SettingsManager(context: Context) {
     fun setRemoteExecutionUrl(url: String) {
         _remoteExecutionUrl.value = url.trim()
         prefs.edit().putString("remote_url", url.trim()).apply()
+    }
+
+    fun setAiApiKey(key: String) {
+        _aiApiKey.value = key.trim()
+        prefs.edit().putString("ai_api_key", key.trim()).apply()
+    }
+
+    fun setAiModel(model: String) {
+        _aiModel.value = model.trim()
+        prefs.edit().putString("ai_model", model.trim()).apply()
+    }
+
+    fun setGitConfig(name: String, email: String) {
+        _gitUserName.value = name.trim()
+        _gitUserEmail.value = email.trim()
+        prefs.edit()
+            .putString("git_user_name", name.trim())
+            .putString("git_user_email", email.trim())
+            .apply()
     }
 }

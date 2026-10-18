@@ -230,7 +230,7 @@
         return escaped;
     }
 
-    function updateEditor() {
+    function updateEditor(markDirty = false) {
         const content = codeEditor.value;
         const lines = content.split('\n');
         renderGutter(lines.length);
@@ -238,13 +238,13 @@
         const highlighted = highlightCode(content, currentLanguage);
         highlightLayer.innerHTML = highlighted + '\n';
 
-        if (!isApplyingHistory) {
+        if (!isApplyingHistory && markDirty) {
             undoStack.push(content);
             if (undoStack.length > 100) undoStack.shift();
             redoStack = [];
         }
 
-        if (window.AndroidBridge && window.AndroidBridge.onContentChanged) {
+        if (markDirty && window.AndroidBridge && window.AndroidBridge.onContentChanged) {
             window.AndroidBridge.onContentChanged(content, true);
         }
     }
@@ -318,11 +318,174 @@
         }
     });
 
+    const autocompleteBox = document.getElementById('autocomplete-box');
+    const AUTOCOMPLETE_DATA = {
+        html: [
+            { text: '<!DOCTYPE html>\n<html lang="en">\n<head>\n    <meta charset="UTF-8">\n    <title>Document</title>\n</head>\n<body>\n    \n</body>\n</html>', label: '!html5', desc: 'template' },
+            { text: '<div>\n    \n</div>', label: 'div', desc: 'tag' },
+            { text: '<p>\n    \n</p>', label: 'p', desc: 'tag' },
+            { text: '<span></span>', label: 'span', desc: 'tag' },
+            { text: '<h1></h1>', label: 'h1', desc: 'tag' },
+            { text: '<h2></h2>', label: 'h2', desc: 'tag' },
+            { text: '<h3></h3>', label: 'h3', desc: 'tag' },
+            { text: '<button type="button"></button>', label: 'button', desc: 'tag' },
+            { text: '<input type="text" placeholder="" />', label: 'input', desc: 'tag' },
+            { text: '<form action="" method="post">\n    \n</form>', label: 'form', desc: 'tag' },
+            { text: '<a href=""></a>', label: 'a', desc: 'tag' },
+            { text: '<img src="" alt="" />', label: 'img', desc: 'tag' },
+            { text: '<ul id="">\n    <li></li>\n</ul>', label: 'ul', desc: 'tag' },
+            { text: '<li></li>', label: 'li', desc: 'tag' },
+            { text: '<table border="1">\n    <tr><td></td></tr>\n</table>', label: 'table', desc: 'tag' },
+            { text: '<header>\n    \n</header>', label: 'header', desc: 'tag' },
+            { text: '<footer>\n    \n</footer>', label: 'footer', desc: 'tag' },
+            { text: '<nav>\n    \n</nav>', label: 'nav', desc: 'tag' },
+            { text: '<section>\n    \n</section>', label: 'section', desc: 'tag' },
+            { text: '<link rel="stylesheet" href="style.css">', label: 'link:css', desc: 'tag' },
+            { text: '<script src="app.js"></script>', label: 'script:src', desc: 'tag' },
+            { text: '<script>\n    \n</script>', label: 'script', desc: 'tag' },
+            { text: '<style>\n    \n</style>', label: 'style', desc: 'tag' },
+            { text: '<meta charset="UTF-8">', label: 'meta', desc: 'tag' }
+        ],
+        css: [
+            { text: 'color: #58A6FF;', label: 'color', desc: 'prop' },
+            { text: 'background: #0F141E;', label: 'background', desc: 'prop' },
+            { text: 'background-color: transparent;', label: 'background-color', desc: 'prop' },
+            { text: 'font-size: 14px;', label: 'font-size', desc: 'prop' },
+            { text: 'font-family: sans-serif;', label: 'font-family', desc: 'prop' },
+            { text: 'font-weight: bold;', label: 'font-weight', desc: 'prop' },
+            { text: 'padding: 8px 12px;', label: 'padding', desc: 'prop' },
+            { text: 'margin: 0 auto;', label: 'margin', desc: 'prop' },
+            { text: 'display: flex;', label: 'display:flex', desc: 'prop' },
+            { text: 'display: grid;', label: 'display:grid', desc: 'prop' },
+            { text: 'flex-direction: column;', label: 'flex-direction', desc: 'prop' },
+            { text: 'justify-content: center;', label: 'justify-content', desc: 'prop' },
+            { text: 'align-items: center;', label: 'align-items', desc: 'prop' },
+            { text: 'border: 1px solid #30363D;', label: 'border', desc: 'prop' },
+            { text: 'border-radius: 8px;', label: 'border-radius', desc: 'prop' },
+            { text: 'width: 100%;', label: 'width', desc: 'prop' },
+            { text: 'height: 100%;', label: 'height', desc: 'prop' },
+            { text: 'box-shadow: 0 4px 12px rgba(0,0,0,0.4);', label: 'box-shadow', desc: 'prop' },
+            { text: 'cursor: pointer;', label: 'cursor', desc: 'prop' }
+        ],
+        javascript: [
+            { text: 'console.log();', label: 'console.log', desc: 'builtin' },
+            { text: 'function myFunc() {\n    \n}', label: 'function', desc: 'fn' },
+            { text: 'const name = "";', label: 'const', desc: 'keyword' },
+            { text: 'let count = 0;', label: 'let', desc: 'keyword' },
+            { text: 'document.getElementById("")', label: 'getElementById', desc: 'dom' },
+            { text: 'document.querySelector("")', label: 'querySelector', desc: 'dom' },
+            { text: 'addEventListener("click", (e) => {\n    \n});', label: 'addEventListener', desc: 'event' },
+            { text: 'if (condition) {\n    \n}', label: 'if', desc: 'keyword' },
+            { text: 'for (let i = 0; i < 10; i++) {\n    \n}', label: 'for', desc: 'loop' },
+            { text: 'setTimeout(() => {\n    \n}, 1000);', label: 'setTimeout', desc: 'async' }
+        ],
+        python: [
+            { text: 'def function_name():\n    pass', label: 'def', desc: 'fn' },
+            { text: 'class MyClass:\n    def __init__(self):\n        pass', label: 'class', desc: 'class' },
+            { text: 'import sys', label: 'import', desc: 'keyword' },
+            { text: 'from math import pi', label: 'from', desc: 'keyword' },
+            { text: 'print("Hello, World!")', label: 'print', desc: 'builtin' },
+            { text: 'if condition:\n    pass\nelif other:\n    pass\nelse:\n    pass', label: 'if', desc: 'control' },
+            { text: 'for item in items:\n    pass', label: 'for', desc: 'loop' },
+            { text: 'while True:\n    break', label: 'while', desc: 'loop' },
+            { text: 'if __name__ == "__main__":\n    main()', label: 'main', desc: 'snippet' }
+        ],
+        kotlin: [
+            { text: 'fun main() {\n    println("Hello from Kotlin!")\n}', label: 'main', desc: 'snippet' },
+            { text: 'fun myMethod(): Unit {\n    \n}', label: 'fun', desc: 'fn' },
+            { text: 'val name: String = ""', label: 'val', desc: 'keyword' },
+            { text: 'var count: Int = 0', label: 'var', desc: 'keyword' },
+            { text: 'class MyClass(val id: Int) {\n    \n}', label: 'class', desc: 'class' },
+            { text: 'data class User(val id: String, val name: String)', label: 'data class', desc: 'class' },
+            { text: 'println()', label: 'println', desc: 'builtin' }
+        ],
+        rust: [
+            { text: 'fn main() {\n    println!("Hello from Rust!");\n}', label: 'main', desc: 'snippet' },
+            { text: 'fn my_func() {\n    \n}', label: 'fn', desc: 'fn' },
+            { text: 'let mut count = 0;', label: 'let mut', desc: 'keyword' },
+            { text: 'struct MyStruct {\n    field: String,\n}', label: 'struct', desc: 'type' },
+            { text: 'println!("Hello, {}!", name);', label: 'println!', desc: 'macro' }
+        ],
+        cpp: [
+            { text: '#include <iostream>\n\nint main() {\n    std::cout << "Hello C++!" << std::endl;\n    return 0;\n}', label: 'main', desc: 'snippet' },
+            { text: 'std::cout <<  << std::endl;', label: 'cout', desc: 'stream' },
+            { text: 'std::string ', label: 'string', desc: 'type' },
+            { text: 'std::vector<int> ', label: 'vector', desc: 'stl' }
+        ],
+        go: [
+            { text: 'package main\n\nimport "fmt"\n\nfunc main() {\n    fmt.Println("Hello Go!")\n}', label: 'main', desc: 'snippet' },
+            { text: 'func myFunc() {\n    \n}', label: 'func', desc: 'fn' },
+            { text: 'fmt.Println()', label: 'Println', desc: 'fmt' }
+        ]
+    };
+
+    function checkAutocomplete() {
+        if (!autocompleteBox) return;
+        const cursor = codeEditor.selectionStart || 0;
+        const text = codeEditor.value || '';
+        const lineStart = text.lastIndexOf('\n', cursor - 1) + 1;
+        const linePrefix = text.substring(lineStart, cursor);
+        const match = linePrefix.match(/([<!a-zA-Z0-9_\-:]+)$/);
+        if (!match || match[1].length < 1) {
+            autocompleteBox.style.display = 'none';
+            return;
+        }
+
+        const rawPrefix = match[1].toLowerCase();
+        const prefix = rawPrefix.startsWith('<') ? rawPrefix.substring(1) : rawPrefix;
+        const lang = currentLanguage.toLowerCase();
+        let dict = AUTOCOMPLETE_DATA[lang] || [];
+        if (dict.length === 0) {
+            dict = (AUTOCOMPLETE_DATA['javascript'] || []).concat(AUTOCOMPLETE_DATA['python'] || []);
+        }
+        const suggestions = dict.filter(it => it.label.toLowerCase().startsWith(prefix) || it.label.toLowerCase().startsWith(rawPrefix) || it.label.toLowerCase().includes(prefix));
+
+        if (suggestions.length === 0) {
+            autocompleteBox.style.display = 'none';
+            return;
+        }
+
+        autocompleteBox.innerHTML = '';
+        suggestions.slice(0, 6).forEach(item => {
+            const row = document.createElement('div');
+            row.className = 'ac-item';
+            row.innerHTML = '<span>' + item.label + '</span><span class="ac-type">' + item.desc + '</span>';
+            row.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                applyAutocomplete(item.text, match[1]);
+            });
+            autocompleteBox.appendChild(row);
+        });
+
+        const lineIndex = text.substring(0, cursor).split('\n').length;
+        const topPos = Math.max(10, (lineIndex * 20) - codeEditor.scrollTop + 22);
+        autocompleteBox.style.top = topPos + 'px';
+        autocompleteBox.style.left = '45px';
+        autocompleteBox.style.display = 'block';
+    }
+
+    function applyAutocomplete(snippet, replacePrefix) {
+        const cursor = codeEditor.selectionStart || 0;
+        const text = codeEditor.value || '';
+        const start = cursor - replacePrefix.length;
+        codeEditor.value = text.substring(0, start) + snippet + text.substring(cursor);
+        codeEditor.selectionStart = codeEditor.selectionEnd = start + snippet.length;
+        if (autocompleteBox) autocompleteBox.style.display = 'none';
+        codeEditor.focus();
+        updateEditor(true);
+        notifyCursorPosition();
+    }
+
     codeEditor.addEventListener('input', function() {
-        updateEditor();
+        updateEditor(true);
+        checkAutocomplete();
     });
 
-    codeEditor.addEventListener('click', notifyCursorPosition);
+    codeEditor.addEventListener('click', function() {
+        notifyCursorPosition();
+        if (autocompleteBox) autocompleteBox.style.display = 'none';
+    });
     codeEditor.addEventListener('keyup', notifyCursorPosition);
 
     // Sync scroll between textarea and highlight layer
@@ -330,6 +493,7 @@
         highlightLayer.scrollTop = codeEditor.scrollTop;
         highlightLayer.scrollLeft = codeEditor.scrollLeft;
         gutter.scrollTop = codeEditor.scrollTop;
+        if (autocompleteBox) autocompleteBox.style.display = 'none';
     });
 
     // Public API exposed to Android WebView
@@ -339,7 +503,7 @@
             if (language) currentLanguage = language.toLowerCase();
             undoStack = [codeEditor.value];
             redoStack = [];
-            updateEditor();
+            updateEditor(false);
             notifyCursorPosition();
         },
         getContent: function() {
@@ -347,7 +511,7 @@
         },
         setLanguage: function(lang) {
             currentLanguage = (lang || 'plaintext').toLowerCase();
-            updateEditor();
+            updateEditor(false);
         },
         setFontSize: function(sp) {
             const size = sp || 14;
@@ -442,12 +606,42 @@
             } catch(e) {
                 console.error("Failed to parse diagnostics", e);
             }
+        },
+        insertText: function(text) {
+            const start = codeEditor.selectionStart || 0;
+            const end = codeEditor.selectionEnd || 0;
+            val = codeEditor.value || '';
+            codeEditor.value = val.substring(0, start) + text + val.substring(end);
+            codeEditor.selectionStart = codeEditor.selectionEnd = start + text.length;
+            codeEditor.focus();
+            updateEditor(true);
+            notifyCursorPosition();
+        },
+        formatDocument: function() {
+            const val = codeEditor.value;
+            if (!val) return;
+            const lines = val.split('\n');
+            let indent = 0;
+            const formatted = lines.map(line => {
+                let trimmed = line.trim();
+                if (trimmed.startsWith('}') || trimmed.startsWith('</') || trimmed.startsWith(']')) {
+                    indent = Math.max(0, indent - 1);
+                }
+                const res = ' '.repeat(indent * tabSize) + trimmed;
+                if ((trimmed.endsWith('{') || trimmed.match(/<[a-zA-Z0-9]+[^>/]*>$/) || trimmed.endsWith('[')) && !trimmed.includes('</')) {
+                    indent++;
+                }
+                return res;
+            }).join('\n');
+            codeEditor.value = formatted;
+            updateEditor(true);
+            notifyCursorPosition();
         }
     };
 
     // Notify Android container that editor is loaded and ready
     document.addEventListener('DOMContentLoaded', function() {
-        updateEditor();
+        updateEditor(false);
         if (window.AndroidBridge && window.AndroidBridge.onEditorReady) {
             window.AndroidBridge.onEditorReady();
         }

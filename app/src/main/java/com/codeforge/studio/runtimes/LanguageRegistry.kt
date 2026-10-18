@@ -24,17 +24,36 @@ data class LanguageCapability(
     val platformLimitations: String
 ) {
     /**
-     * Checks if this runtime is actually installed and available on this Android host device.
+     * Checks if this runtime is actually installed and available on this Android host device or test host.
+     * Searches system PATH, Termux toolchain (/data/data/com.termux/files/usr/bin), and standard Android paths.
      */
     fun isRuntimeInstalled(): Boolean {
         if (executionMode == ExecutionMode.WEB_SANDBOX) return true
         if (requiredBinaries.isEmpty()) return false
 
-        val pathDirs = (System.getenv("PATH") ?: "/system/bin:/system/xbin:/vendor/bin").split(":")
+        val envPath = System.getenv("PATH") ?: ""
+        val isWindows = System.getProperty("os.name")?.contains("Windows", ignoreCase = true) == true
+        val standardAndroidDirs = listOf(
+            "/system/bin",
+            "/system/xbin",
+            "/vendor/bin",
+            "/data/data/com.termux/files/usr/bin"
+        )
+
+        val pathDirs = (envPath.split(File.pathSeparator).filter { it.isNotBlank() } + standardAndroidDirs).distinct()
+
+        val extensionsToCheck = if (isWindows) listOf("", ".exe", ".cmd", ".bat") else listOf("")
+
         return requiredBinaries.any { bin ->
-            pathDirs.any { dir ->
-                val f = File(dir, bin)
-                f.exists() && f.canExecute()
+            pathDirs.any { dirPath ->
+                val dir = File(dirPath)
+                if (!dir.exists() || !dir.isDirectory) false
+                else {
+                    extensionsToCheck.any { ext ->
+                        val target = File(dir, bin + ext)
+                        target.exists() && (target.canExecute() || (!isWindows && target.isFile))
+                    }
+                }
             }
         }
     }

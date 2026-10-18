@@ -71,5 +71,14 @@ class CodeEditorBridge(
         fun setDiagnostics(webView: WebView, diagnosticsJson: String) {
             webView.evaluateJavascript("window.CodeForgeEditor && window.CodeForgeEditor.setDiagnostics($diagnosticsJson);", null)
         }
+
+        fun insertText(webView: WebView, text: String) {
+            val jsonText = JSONObject.quote(text)
+            webView.evaluateJavascript("window.CodeForgeEditor && window.CodeForgeEditor.insertText($jsonText);", null)
+        }
+
+        fun format(webView: WebView) {
+            webView.evaluateJavascript("window.CodeForgeEditor && window.CodeForgeEditor.formatDocument && window.CodeForgeEditor.formatDocument();", null)
+        }
     }
 }

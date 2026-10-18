@@ -2,21 +2,31 @@ package com.codeforge.studio.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-val BgApp = Color(0xFF101216)
-val BgEditor = Color(0xFF15181E)
-val BgPanel = Color(0xFF1D222B)
-val BgPanelElevated = Color(0xFF242A35)
+// Modern Dark Studio Palette (Matching Mockups)
+val BgApp = Color(0xFF0B0E14)
+val BgEditor = Color(0xFF0F141E)
+val BgPanel = Color(0xFF151B26)
+val BgPanelElevated = Color(0xFF1C2433)
+val BgCard = Color(0xFF141923)
 
-val AccentPrimary = Color(0xFF58A6FF)
-val AccentSecondary = Color(0xFF8B7CFF)
+// Electric Blue & Cyan Accents (VS Code / Studio aesthetic)
+val AccentPrimary = Color(0xFF0091FF)
+val AccentCyan = Color(0xFF00D8F6)
+val AccentSecondary = Color(0xFF8B5CF6)
+val AccentGlow = Color(0x330091FF)
 
-val StatusSuccess = Color(0xFF3FB950)
-val StatusWarning = Color(0xFFD29922)
-val StatusError = Color(0xFFF85149)
+// Status Colors
+val StatusSuccess = Color(0xFF10B981)
+val StatusWarning = Color(0xFFF59E0B)
+val StatusError = Color(0xFFEF4444)
+val StatusInfo = Color(0xFF38BDF8)
 
-val TextPrimary = Color(0xFFE6EDF3)
-val TextSecondary = Color(0xFF9BA7B4)
-val BorderColor = Color(0xFF303744)
+// Typography & Borders
+val TextPrimary = Color(0xFFF1F5F9)
+val TextSecondary = Color(0xFF94A3B8)
+val TextMuted = Color(0xFF64748B)
+val BorderColor = Color(0xFF232D3F)
+val BorderHighlight = Color(0xFF2B3A52)
 
 // Light theme alternatives
 val LightBgApp = Color(0xFFF6F8FA)

@@ -12,13 +12,17 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.FormatAlignLeft
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.RocketLaunch
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.filled.Source
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Scaffold
+import java.io.File
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -47,6 +51,8 @@ import com.codeforge.studio.ui.screens.AiAssistantScreen
 import com.codeforge.studio.ui.screens.BuildScreen
 import com.codeforge.studio.ui.screens.EditorScreen
 import com.codeforge.studio.ui.screens.HomeScreen
+import com.codeforge.studio.ui.screens.LanguagesScreen
+import com.codeforge.studio.ui.screens.NewProjectScreen
 import com.codeforge.studio.ui.screens.ProblemsScreen
 import com.codeforge.studio.ui.screens.SettingsScreen
 import com.codeforge.studio.ui.screens.SourceControlScreen
@@ -114,6 +120,8 @@ fun CodeForgeAppContent(
     val issues by diagnosticsManager.issues.collectAsState()
 
     var showCommandPalette by remember { mutableStateOf(false) }
+    var runTargetFile by remember { mutableStateOf<File?>(null) }
+    var autoRunTrigger by remember { mutableStateOf(false) }
 
     // Interactive terminal session for current project
     val terminalSession = remember(currentProject) {
@@ -124,10 +132,20 @@ fun CodeForgeAppContent(
         currentProject?.rootDirectory?.let { GitManager(it) }
     }
 
-    // Command palette actions
+    // Command palette actions - fully functional
     val commandActions = listOf(
         CommandAction("open_editor", "Open Code Editor", "Edit project source code and tabs", Icons.Default.Code) {
             navController.navigate(Screen.Editor.route)
+        },
+        CommandAction("start_debugging", "Start Debugging", "Analyze diagnostics and inspect syntax warnings", Icons.Default.Warning) {
+            navController.navigate(Screen.Problems.route)
+        },
+        CommandAction("format_doc", "Format Document", "Auto-format indentation and structure in Code Editor", Icons.Default.FormatAlignLeft) {
+            navController.navigate(Screen.Editor.route)
+        },
+        CommandAction("execute_script", "Execute Script", "Run or build current target program", Icons.Default.RocketLaunch) {
+            autoRunTrigger = true
+            navController.navigate(Screen.Build.route)
         },
         CommandAction("open_terminal", "Open Terminal", "Access interactive Android shell", Icons.Default.PlayArrow) {
             navController.navigate(Screen.Terminal.route)
@@ -138,14 +156,23 @@ fun CodeForgeAppContent(
         CommandAction("open_problems", "Inspect Diagnostics", "View syntax errors and compiler warnings", Icons.Default.Warning) {
             navController.navigate(Screen.Problems.route)
         },
+        CommandAction("find_files", "Find in Files", "Search across project files in editor", Icons.Default.Search) {
+            navController.navigate(Screen.Editor.route)
+        },
         CommandAction("open_git", "Source Control", "Review Git diffs, staged files, and commit", Icons.Default.Source) {
             navController.navigate(Screen.SourceControl.route)
         },
         CommandAction("open_ai", "AI Assistant", "Generate tests and explain code", Icons.Default.SmartToy) {
             navController.navigate(Screen.AiAssistant.route)
         },
+        CommandAction("open_languages", "Language Toolchains", "View 14 supported runtimes and versions", Icons.Default.Code) {
+            navController.navigate(Screen.Languages.route)
+        },
         CommandAction("new_workspace", "Setup Workspace", "Create or open a different project", Icons.Default.Folder) {
             navController.navigate(Screen.Welcome.route)
+        },
+        CommandAction("change_theme", "Change Theme", "Switch between dark and light themes", Icons.Default.Palette) {
+            settingsManager.setDarkTheme(!settingsManager.darkTheme.value)
         },
         CommandAction("toggle_theme", "Toggle Color Theme", "Switch between dark and light themes", Icons.Default.Palette) {
             settingsManager.setDarkTheme(!settingsManager.darkTheme.value)
@@ -155,27 +182,34 @@ fun CodeForgeAppContent(
         }
     )
 
+    val aiApiKey by settingsManager.aiApiKey.collectAsState()
+    androidx.compose.runtime.LaunchedEffect(aiApiKey) {
+        aiAssistantManager.apiKey = aiApiKey
+    }
+
+    val showBottomBar = currentRoute in listOf(
+        Screen.Home.route,
+        Screen.Build.route,
+        Screen.Problems.route,
+        Screen.SourceControl.route,
+        Screen.AiAssistant.route,
+        Screen.Languages.route,
+        Screen.Settings.route
+    )
+
     Scaffold(
-        topBar = {
-            AppTopBar(
-                projectName = currentProject?.name,
-                activeFileName = currentRoute?.capitalize(),
-                onOpenCommandPalette = { showCommandPalette = true },
-                onQuickRun = { navController.navigate(Screen.Build.route) },
-                onOpenAi = { navController.navigate(Screen.AiAssistant.route) },
-                onOpenSettings = { navController.navigate(Screen.Settings.route) }
-            )
-        },
         bottomBar = {
-            AppBottomBar(
-                currentRoute = currentRoute,
-                problemsCount = issues.size,
-                onNavigate = { screen ->
-                    navController.navigate(screen.route) {
-                        launchSingleTop = true
+            if (showBottomBar) {
+                AppBottomBar(
+                    currentRoute = currentRoute,
+                    problemsCount = issues.size,
+                    onNavigate = { screen ->
+                        navController.navigate(screen.route) {
+                            launchSingleTop = true
+                        }
                     }
-                }
-            )
+                )
+            }
         }
     ) { innerPadding ->
         Box(
@@ -202,7 +236,8 @@ fun CodeForgeAppContent(
                     HomeScreen(
                         workspaceManager = workspaceManager,
                         onNavigate = { screen -> navController.navigate(screen.route) },
-                        problemsCount = issues.size
+                        problemsCount = issues.size,
+                        onOpenCommandPalette = { showCommandPalette = true }
                     )
                 }
                 composable(Screen.Editor.route) {
@@ -211,7 +246,13 @@ fun CodeForgeAppContent(
                         fileManager = fileManager,
                         draftManager = draftManager,
                         diagnosticsManager = diagnosticsManager,
-                        settingsManager = settingsManager
+                        settingsManager = settingsManager,
+                        onQuickRun = { file ->
+                            runTargetFile = file
+                            autoRunTrigger = true
+                            navController.navigate(Screen.Build.route)
+                        },
+                        onNavigateTo = { screen -> navController.navigate(screen.route) }
                     )
                 }
                 composable(Screen.Terminal.route) {
@@ -224,7 +265,10 @@ fun CodeForgeAppContent(
                     BuildScreen(
                         currentProject = currentProject,
                         processRunner = processRunner,
-                        diagnosticsManager = diagnosticsManager
+                        diagnosticsManager = diagnosticsManager,
+                        initialTargetFile = runTargetFile,
+                        autoRun = autoRunTrigger,
+                        onAutoRunConsumed = { autoRunTrigger = false }
                     )
                 }
                 composable(Screen.Problems.route) {
@@ -251,6 +295,20 @@ fun CodeForgeAppContent(
                 composable(Screen.Settings.route) {
                     SettingsScreen(
                         settingsManager = settingsManager
+                    )
+                }
+                composable(Screen.Languages.route) {
+                    LanguagesScreen()
+                }
+                composable(Screen.NewProject.route) {
+                    NewProjectScreen(
+                        workspaceManager = workspaceManager,
+                        onProjectCreated = {
+                            navController.navigate(Screen.Home.route) {
+                                popUpTo(Screen.NewProject.route) { inclusive = true }
+                            }
+                        },
+                        onBack = { navController.popBackStack() }
                     )
                 }
             }

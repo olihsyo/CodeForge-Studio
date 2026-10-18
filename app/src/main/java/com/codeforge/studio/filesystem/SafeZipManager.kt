@@ -75,6 +75,8 @@ object SafeZipManager {
     /**
      * Compresses [sourceDir] into [targetZipFile].
      */
+    fun createZipFromDirectory(sourceDir: File, targetZipFile: File): Result<File> = zipDirectory(sourceDir, targetZipFile)
+
     fun zipDirectory(sourceDir: File, targetZipFile: File): Result<File> {
         return runCatching {
             targetZipFile.parentFile?.mkdirs()

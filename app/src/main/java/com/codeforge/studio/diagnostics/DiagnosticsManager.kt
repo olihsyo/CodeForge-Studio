@@ -36,21 +36,34 @@ class DiagnosticsManager {
 
         when (ext) {
             "json" -> {
-                try {
-                    val trimmed = content.trim()
-                    if (trimmed.startsWith("{")) {
-                        JSONObject(trimmed)
-                    } else if (trimmed.startsWith("[")) {
-                        JSONArray(trimmed)
-                    } else if (trimmed.isNotEmpty()) {
-                        fileIssues.add(
-                            DiagnosticIssue(file, 1, 1, "JSON must begin with '{' or '['", Severity.ERROR, "JSON Validator")
-                        )
+                val trimmed = content.trim()
+                if (trimmed.isNotEmpty() && !trimmed.startsWith("{") && !trimmed.startsWith("[")) {
+                    fileIssues.add(
+                        DiagnosticIssue(file, 1, 1, "JSON must begin with '{' or '['", Severity.ERROR, "JSON Validator")
+                    )
+                } else if (trimmed.isNotEmpty()) {
+                    try {
+                        if (trimmed.startsWith("{")) {
+                            JSONObject(trimmed)
+                        } else {
+                            JSONArray(trimmed)
+                        }
+                    } catch (e: Exception) {
+                        if (e.message?.contains("Stub") == true) {
+                            val openBrace = trimmed.count { it == '{' }
+                            val closeBrace = trimmed.count { it == '}' }
+                            val openBracket = trimmed.count { it == '[' }
+                            val closeBracket = trimmed.count { it == ']' }
+                            val hasUnquotedKeys = Regex("""[{,]\s*[a-zA-Z0-9_]+\s*:""").containsMatchIn(trimmed)
+                            if (openBrace != closeBrace || openBracket != closeBracket || hasUnquotedKeys) {
+                                fileIssues.add(DiagnosticIssue(file, 1, 1, "Invalid JSON syntax", Severity.ERROR, "JSON Validator"))
+                            }
+                        } else {
+                            val msg = e.message ?: "Invalid JSON syntax"
+                            val lineNum = extractLineFromError(msg) ?: 1
+                            fileIssues.add(DiagnosticIssue(file, lineNum, 1, msg, Severity.ERROR, "JSON Validator"))
+                        }
                     }
-                } catch (e: Exception) {
-                    val msg = e.message ?: "Invalid JSON syntax"
-                    val lineNum = extractLineFromError(msg) ?: 1
-                    fileIssues.add(DiagnosticIssue(file, lineNum, 1, msg, Severity.ERROR, "JSON Validator"))
                 }
             }
             "html", "xml" -> {

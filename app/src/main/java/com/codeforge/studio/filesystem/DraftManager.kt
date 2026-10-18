@@ -4,10 +4,12 @@ import android.content.Context
 import java.io.File
 import java.security.MessageDigest
 
-class DraftManager(private val context: Context) {
+class DraftManager(private val baseDir: File) {
+
+    constructor(context: Context) : this(File(context.filesDir, "drafts"))
 
     private val draftsDir: File
-        get() = File(context.filesDir, "drafts").apply { if (!exists()) mkdirs() }
+        get() = baseDir.apply { if (!exists()) mkdirs() }
 
     private fun hashPath(filePath: String): String {
         val digest = MessageDigest.getInstance("SHA-256")
